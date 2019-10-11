@@ -2,48 +2,50 @@
 #include <iterator>
 #include <vector>
 
-const int alphabetSize = 26;
+const size_t alphabetSize = 26;
+const char firstChar = 'a';
 
-char firstNotUsed( const std::vector<size_t>& used, const std::string& res ) {
+template <typename TextType>
+char firstNotUsed( const std::vector<size_t>& used, const TextType& res ) {
     std::vector<char> letters( alphabetSize, 0 );
     for( size_t u : used ) {
-        letters[res[u] - 'a'] = 1;
+        letters[res[u] - firstChar] = 1;
     }
     // Start with 'b' because 'a' is definitely used
     for( size_t i = 1; i < letters.size(); ++i ) {
         if( !letters[i] ) {
-            return static_cast<char>('a' + i);
+            return static_cast<char>(firstChar + i);
         }
     }
-    return 'b';
+    return firstChar + 1;
 }
 
-std::string zFunctionToString( std::istream_iterator<size_t>& iter ) {
+template <typename BeginIterator, typename EndIterator>
+std::string zFunctionToString( BeginIterator begin, EndIterator end ) {
     std::string res = "a";
-    ++iter;
+    ++begin;
     bool writeAfterPrefix = true;
     std::vector<size_t> usedLettersIndices;
-    std::istream_iterator<size_t> endOfStream;
 
-    while( iter != endOfStream ) {
-        if( *iter == 0 ) {
-            res += writeAfterPrefix ? firstNotUsed( usedLettersIndices, res ) : 'b';
+    while( begin != end ) {
+        if( *begin == 0 ) {
+            res += writeAfterPrefix ? firstNotUsed( usedLettersIndices, res ) : static_cast<char>(firstChar + 1);
             writeAfterPrefix = false;
-            ++iter;
+            ++begin;
         } else {
             usedLettersIndices.clear();
-            size_t needWrite = *iter;
+            size_t needWrite = *begin;
             size_t written = 0;
             while( needWrite > written ) {
-                if( needWrite - written < *iter ) {
-                    needWrite = *iter;
+                if( needWrite - written < *begin ) {
+                    needWrite = *begin;
                     written = 0;
-                    usedLettersIndices.push_back(*iter);
-                } else if( needWrite - written == *iter ) {
-                    usedLettersIndices.push_back(*iter);
+                    usedLettersIndices.push_back(*begin);
+                } else if( needWrite - written == *begin ) {
+                    usedLettersIndices.push_back(*begin);
                 }
                 res += res[written++];
-                ++iter;
+                ++begin;
             }
             writeAfterPrefix = true;
         }
@@ -54,7 +56,8 @@ std::string zFunctionToString( std::istream_iterator<size_t>& iter ) {
 
 int main() {
     std::istream_iterator<size_t> iter( std::cin );
-    std::cout << zFunctionToString( iter );
+    std::istream_iterator<size_t> eof;
+    std::cout << zFunctionToString( iter, eof );
 
     return 0;
 }
