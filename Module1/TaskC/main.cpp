@@ -2,6 +2,7 @@
 #include <vector>
 #include <map>
 #include <iterator>
+#include <queue>
 
 class Trie {
 public:
@@ -13,8 +14,7 @@ private:
     void Init( const std::vector<std::string>& parts ); // To support 2 constructors
     std::vector<std::string> split( const std::string& str, char delim='?' );
     Node *root = nullptr;
-    void makeSufLinks();
-    void makeCompressedSufLinks();
+    void makeAllLinks();
 
     Node *getSufLink( Node* );
     Node *getLink( Node*, char c );
@@ -51,8 +51,8 @@ void Trie::Init( const std::vector<std::string>& parts ) {
         current->terminalForIndex = currIndex;
         currIndex += part.size() + 1;
     }
-    makeSufLinks();
-    makeCompressedSufLinks();
+    makeAllLinks();
+    int a = 1;
 }
 
 Trie::Trie( const std::string& pattern ) {
@@ -63,12 +63,21 @@ Trie::Trie( const std::vector<std::string>& parts ) {
     Init( parts );
 }
 
-void Trie::makeCompressedSufLinks() {
-
-}
-
-void Trie::makeSufLinks() {
-
+void Trie::makeAllLinks() {
+    // Will write bfs
+    root->sufLink = root;
+    root->compressedSuffLink = root;
+    std::queue<Node*> queue;
+    queue.push(root);
+    while( !queue.empty() ) {
+        Node* curr = queue.front();
+        queue.pop();
+        curr->sufLink = getSufLink(curr);
+        curr->compressedSuffLink = getCompressedSufLink(curr);
+        for( const auto& [key, value] : curr->children ) {
+            queue.push( value );
+        }
+    }
 }
 
 std::vector<size_t> Trie::findMatches( std::istream_iterator<char>& text ) const {
@@ -112,11 +121,27 @@ Trie::Node* Trie::getLink( Node* node, char c ) {
 }
 
 Trie::Node* Trie::getSufLink( Node* node ) {
-
+    if( node->sufLink == nullptr ) {
+        if( node == root || node->parent == root ) {
+            node->sufLink = root;
+        } else {
+            node->sufLink = getLink( getSufLink(node->parent), node->sonByChar );
+        }
+    }
+    return node->sufLink;
 }
 
 Trie::Node* Trie::getCompressedSufLink( Node* node ) {
-
+    if( node->compressedSuffLink == nullptr ) {
+        if( getSufLink(node)->terminalForIndex != -1 ) {
+            node->compressedSuffLink = getSufLink(node);
+        } else if( getSufLink(node) == root ) {
+            node->compressedSuffLink = root;
+        } else {
+            node->compressedSuffLink = getCompressedSufLink(getSufLink(node));
+        }
+    }
+    return node->compressedSuffLink;
 }
 
 int main() {
