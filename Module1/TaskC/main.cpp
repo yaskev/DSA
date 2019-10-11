@@ -1,96 +1,143 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
-#include <map>
 #include <iterator>
 #include <queue>
+#include <memory>
+#include <unordered_set>
+
+#pragma GCC optimize("Ofast,unroll-all-loops")
 
 class Trie {
 public:
-    explicit Trie( const std::vector<std::string>& parts );
+    explicit Trie( const std::vector<std::string>& parts, uint32_t patternSize_ );
     explicit Trie( const std::string& pattern );
-    std::vector<size_t> findMatches( std::istream_iterator<char>& ) const;
+    std::vector<uint32_t> findMatches( std::istream_iterator<char> );
 private:
     struct Node;
     void Init( const std::vector<std::string>& parts ); // To support 2 constructors
     std::vector<std::string> split( const std::string& str, char delim='?' );
-    Node *root = nullptr;
+    std::unique_ptr<Node> root;
     void makeAllLinks();
 
     Node *getSufLink( Node* );
     Node *getLink( Node*, char c );
     Node *getCompressedSufLink( Node* );
 
-    std::vector<size_t> partStartIndex;
+    std::vector<uint32_t> partStartIndex;
+    uint32_t patternSize = 0;
+    static const uint32_t alphabetSize = 26;
 };
 
 struct Trie::Node {
-    std::map<char, Node*> children;
-    std::map<char, Node*> link;
-    size_t terminalForIndex = -1;
+    //    std::map<char, std::unique_ptr<Node>> children;
+    //    std::map<char, Node*> link;
+    std::vector<std::unique_ptr<Node>> children = std::vector<std::unique_ptr<Node>>( alphabetSize );
+    std::vector<Node*> link = std::vector<Node*>( alphabetSize );
+    std::unordered_set<int32_t> terminalForIndex;
     Node *parent = nullptr;
     Node *sufLink = nullptr;
     Node *compressedSuffLink = nullptr;
     char sonByChar = 0;
+    uint32_t depth = 0; // Only for terminal vertices
 };
 
-void Trie::Init( const std::vector<std::string>& parts ) {
-    root = new Node();
-    root->sufLink = root;
-    size_t currIndex = 0;
-    for( const std::string& part : parts ) {
-        Node *current = root;
+inline void Trie::Init( const std::vector<std::string>& parts ) {
+    root = std::make_unique<Node>();
+    for( uint32_t i = 0; i < parts.size(); ++i ) {
+        std::string part = parts.at(i);
+        Node *current = root.get();
         for( char c : part ) {
-            if( current->children.find(c) == current->children.end() ) {
-                Node *newChild = new Node();
+            if( !current->children.at(c - 'a') ) {
+                auto newChild = std::make_unique<Node>();
                 newChild->parent = current;
                 newChild->sonByChar = c;
-                current->children.emplace(c, newChild);
+                current->children.at(c - 'a') = std::move(newChild);
             }
-            current = current->children[c];
+            current = current->children.at(c - 'a').get();
         }
-        current->terminalForIndex = currIndex;
-        currIndex += part.size() + 1;
+        current->terminalForIndex.insert(partStartIndex.at(i));
+        current->depth = static_cast<uint32_t>(part.size());
     }
     makeAllLinks();
     int a = 1;
 }
 
 Trie::Trie( const std::string& pattern ) {
+    patternSize = static_cast<uint32_t>(pattern.size());
     Init( split(pattern, '?') );
 };
 
-Trie::Trie( const std::vector<std::string>& parts ) {
+Trie::Trie( const std::vector<std::string>& parts, uint32_t patternSize_ ) {
+    patternSize = patternSize_;
     Init( parts );
 }
 
-void Trie::makeAllLinks() {
+inline void Trie::makeAllLinks() {
     // Will write bfs
-    root->sufLink = root;
-    root->compressedSuffLink = root;
+    root->sufLink = root.get();
+    root->compressedSuffLink = root.get();
     std::queue<Node*> queue;
-    queue.push(root);
+    queue.push(root.get());
     while( !queue.empty() ) {
         Node* curr = queue.front();
         queue.pop();
         curr->sufLink = getSufLink(curr);
         curr->compressedSuffLink = getCompressedSufLink(curr);
-        for( const auto& [key, value] : curr->children ) {
-            queue.push( value );
+        for( const auto& it : curr->children ) {
+            if( it ) {
+                queue.push( it.get() );
+            }
         }
     }
 }
 
-std::vector<size_t> Trie::findMatches( std::istream_iterator<char>& text ) const {
-    std::vector<size_t> res;
-
+std::vector<uint32_t> Trie::findMatches( std::istream_iterator<char> in ) {
+    std::istream_iterator<char> endOfStream;
+    std::vector<uint32_t> res;
+    std::vector<uint32_t> matches(4 * patternSize);
+    uint32_t charNum = 0;
+    Node *curr = root.get();
+    while( in != endOfStream ) {
+        matches.at(charNum) = 0;
+        curr = getLink(curr, *in);
+        if( !curr->terminalForIndex.empty() ) {
+            for( const int32_t index : curr->terminalForIndex ) {
+                if( charNum > patternSize || charNum + 1 >= index + curr->depth ) {
+                    matches.at(charNum + 1 - (index + curr->depth)) += 1;
+                }
+            }
+        }
+        Node *tmp = curr->compressedSuffLink;
+        while( tmp != root.get() ) {
+            for( const int32_t index : tmp->terminalForIndex ) {
+                if( charNum > patternSize || charNum + 1 >= index + tmp->depth ) {
+                    matches.at(charNum + 1 - (index + tmp->depth)) += 1;
+                }
+            }
+            tmp = tmp->compressedSuffLink;
+        }
+        ++charNum;
+        ++in;
+        if( matches.size() == charNum ) {
+            matches.resize(2 * charNum);
+        }
+    }
+    if( charNum >= patternSize ) {
+        for( uint32_t i = 0; i < charNum - patternSize + 1; ++i ) {
+            if( matches.at(i) == partStartIndex.size() ) {
+                res.push_back(i);
+            }
+        }
+    }
 
     return res;
 }
 
-std::vector<std::string> Trie::split( const std::string& str, char delim ) {
+inline std::vector<std::string> Trie::split( const std::string& str, char delim ) {
     std::vector<std::string> res;
     std::string part;
-    for( size_t i = 0; i < str.size(); ++i ) {
+    for( uint32_t i = 0; i < str.size(); ++i ) {
         if( str[i] != delim ) {
             if( part.empty() ) {
                 partStartIndex.push_back(i);
@@ -107,23 +154,23 @@ std::vector<std::string> Trie::split( const std::string& str, char delim ) {
     return res;
 }
 
-Trie::Node* Trie::getLink( Node* node, char c ) {
-    if( node->link.find(c) == node->link.end() ) {
-        if( node->children.find(c) != node->children.end() ) {
-            node->link[c] = node->children[c];
-        } else if( node == root ) {
-            node->link[c] = root;
+inline Trie::Node* Trie::getLink( Node* node, char c ) {
+    if( !node->link.at(c - 'a') ) {
+        if( node->children.at(c - 'a') ) {
+            node->link.at(c - 'a') = node->children.at(c - 'a').get();
+        } else if( node == root.get() ) {
+            node->link.at(c - 'a') = root.get();
         } else {
-            node->link[c] = getLink(getSufLink(node), c);
+            node->link.at(c - 'a') = getLink(getSufLink(node), c);
         }
     }
-    return node->link[c];
+    return node->link.at(c - 'a');
 }
 
-Trie::Node* Trie::getSufLink( Node* node ) {
+inline Trie::Node* Trie::getSufLink( Node* node ) {
     if( node->sufLink == nullptr ) {
-        if( node == root || node->parent == root ) {
-            node->sufLink = root;
+        if( node == root.get() || node->parent == root.get() ) {
+            node->sufLink = root.get();
         } else {
             node->sufLink = getLink( getSufLink(node->parent), node->sonByChar );
         }
@@ -131,12 +178,12 @@ Trie::Node* Trie::getSufLink( Node* node ) {
     return node->sufLink;
 }
 
-Trie::Node* Trie::getCompressedSufLink( Node* node ) {
+inline Trie::Node* Trie::getCompressedSufLink( Node* node ) {
     if( node->compressedSuffLink == nullptr ) {
-        if( getSufLink(node)->terminalForIndex != -1 ) {
+        if( !getSufLink(node)->terminalForIndex.empty() ) {
             node->compressedSuffLink = getSufLink(node);
-        } else if( getSufLink(node) == root ) {
-            node->compressedSuffLink = root;
+        } else if( getSufLink(node) == root.get() ) {
+            node->compressedSuffLink = root.get();
         } else {
             node->compressedSuffLink = getCompressedSufLink(getSufLink(node));
         }
@@ -145,14 +192,23 @@ Trie::Node* Trie::getCompressedSufLink( Node* node ) {
 }
 
 int main() {
+    std::ifstream in("input.txt");
+    std::ofstream out("output.txt");
+//    std::cin.tie(nullptr);
+//    std::ios::sync_with_stdio(false);
+    std::cout << in.is_open();
     std::string pattern;
-    std::cin >> pattern;
-    std::istream_iterator<char> text( std::cin );
-    Trie trie( pattern );
+    in >> pattern;
+    std::istream_iterator<char> istream( in );
 
-    for( size_t entry : trie.findMatches(text) ) {
-        std::cout << entry << " ";
+    Trie trie( pattern );
+    std::vector<uint32_t> res = trie.findMatches(istream);
+    for( uint32_t entry : res ) {
+        out << entry << " ";
     }
+    in.close();
+    out.close();
 
     return 0;
 }
+
