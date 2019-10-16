@@ -1,5 +1,4 @@
-#include <iostream>
-#include <iterator>
+include <iterator>
 #include <vector>
 
 const size_t alphabetSize = 26;
