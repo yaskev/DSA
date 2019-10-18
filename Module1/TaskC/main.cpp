@@ -11,17 +11,17 @@
 class Trie {
 public:
     explicit Trie (const std::string& pattern);
-    friend std::vector<uint32_t> printMatches(std::istream_iterator<char>, Trie&);
+    friend void printMatches(std::istream_iterator<char>, Trie&);
 private:
     struct Node;
     std::vector<std::string> split(const std::string& str, char delim='?');
     std::unique_ptr<Node> root;
     void makeAllLinks();
-    
+
     Node *getSufLink (Node*);
     Node *getLink (Node*, char c);
     Node *getCompressedSufLink (Node*);
-    
+
     std::vector<uint32_t> partStartIndex;
     uint32_t patternSize = 0;
     uint32_t doublePatternSize = 0;
@@ -94,7 +94,7 @@ void Trie::makeAllLinks() {
 std::vector<std::string> Trie::split( const std::string& str, char delim ) {
     std::vector<std::string> res;
     std::string part;
-    for( size_t i = 0; i < str.size(); ++i ) {
+    for( uint32_t i = 0; i < str.size(); ++i ) {
         if( str[i] != delim ) {
             if( part.empty() ) {
                 partStartIndex.push_back(i);
@@ -148,9 +148,8 @@ inline Trie::Node* Trie::getCompressedSufLink( Node* node ) {
     return node->compressedSuffLink;
 }
 
-std::vector<uint32_t> printMatches(std::istream_iterator<char> in, Trie& trie) {
+void printMatches(std::istream_iterator<char> in, Trie& trie) {
     std::istream_iterator<char> endOfStream;
-    std::vector<uint32_t> res;
     std::vector<uint32_t> matches( trie.doublePatternSize, 0 );
     uint32_t charNum = 0;
     Trie::Node *curr = trie.root.get();
@@ -184,8 +183,6 @@ std::vector<uint32_t> printMatches(std::istream_iterator<char> in, Trie& trie) {
             std::cout << charNum - trie.patternSize;
         }
     }
-
-    return res;
 }
 
 int main() {
@@ -194,9 +191,9 @@ int main() {
     std::string pattern;
     std::cin >> pattern;
     std::istream_iterator<char> istream( std::cin );
-    
+
     Trie trie( pattern );
-    std::vector<uint32_t> res = printMatches(istream, trie);
-    
+    printMatches(istream, trie);
+
     return 0;
 }
