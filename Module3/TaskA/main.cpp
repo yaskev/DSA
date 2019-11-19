@@ -24,7 +24,7 @@ public:
 };
 
 template<typename Figure, typename Point>
-double distanceTernary(const Figure& f, Point left, Point right, double eps=1e-10) {
+double distanceTernary(const Figure& f, Point left, Point right, double eps=1e-16) {
 	double minValue = 1e308;
 	double oldMinValue = 0;
 	while (fabs(minValue - oldMinValue) > eps) {
