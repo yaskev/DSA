@@ -1,6 +1,7 @@
 #include <iostream>
 #include <array>
 #include <cmath>
+#include <algorithm>
 
 template <typename T, uint32_t Dim>
 class Point {
@@ -23,8 +24,8 @@ public:
 };
 
 template<typename Figure, typename Point>
-inline double distanceTernary(const Figure& f, Point left, Point right, double eps=1e-20) {
-	double minValue = 1;
+double distanceTernary(const Figure& f, Point left, Point right, double eps=1e-10) {
+	double minValue = 1e308;
 	double oldMinValue = 0;
 	while (fabs(minValue - oldMinValue) > eps) {
 		auto oldLeft = left;
@@ -48,7 +49,7 @@ inline double distanceTernary(const Figure& f, Point left, Point right, double e
 template <typename T, uint32_t Dim>
 double Point<T, Dim>::distance(const Point &other) const {
 	double squares = 0;
-	for (size_t i = 0; i < coords.size(); ++i) {
+	for (uint32_t i = 0; i < Dim; ++i) {
 		squares += (other.coords[i] - coords[i]) * (other.coords[i] - coords[i]);
 	}
 	return squares;
@@ -57,8 +58,8 @@ double Point<T, Dim>::distance(const Point &other) const {
 template <typename T, uint32_t Dim>
 Point<T, Dim>::Point(const Point& p1, const Point& p2, bool left) {
 	for (uint32_t i = 0; i < Dim; ++i) {
-		double difference = p1.coords[i] - p2.coords[i];
-		coords[i] = p1.coords[i] + (left ? difference / 3 : 2. / 3 * difference);
+		double difference = p2.coords[i] - p1.coords[i];
+		coords[i] = p1.coords[i] + (left ? difference / 3 : 2 * difference / 3);
 	}
 }
 
