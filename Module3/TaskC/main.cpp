@@ -5,6 +5,7 @@
 #include <cmath>
 
 const double EPS = 1e-8;
+const double PI = atan(1) * 4;
 
 template <typename T, uint32_t Dim>
 class Point {
@@ -27,9 +28,8 @@ Point<T, Dim>::Point(const Point &p1, const Point &p2) {
 
 template <typename T, uint32_t Dim>
 double Point<T, Dim>::angle(const Point &other) const {
-//	std::valarray<double> x = {other.get(0) - coords[0]};
-//	std::valarray<double> y = {other.get(1) - coords[1]};
-	return atan2(other.get(1) - coords[1], other.get(0) - coords[0]);
+	double ang = atan2(other.get(1) - coords[1], other.get(0) - coords[0]);
+	return ang > -EPS ? ang : ang + 2*PI;
 }
 
 template <typename T, uint32_t Dim>
@@ -54,7 +54,7 @@ private:
 template <typename Pt>
 Polygon<Pt>::Polygon(const Polygon<Pt> &other, bool negate) {
 	for (size_t i = 0; i < other.points.size(); ++i) {
-		points.emplace_back(other.points[i], negate);
+		points.push_back(Pt(other.points[i], negate));
 	}
 }
 
@@ -63,13 +63,12 @@ int Polygon<Pt>::getLeast() const {
 	double minY = 1e300, minX = 1e300;
 	int index = -1;
 	for (size_t i = 0; i < points.size(); ++i) {
-		if (points[i].get(1) < minY) {
+		if (points[i].get(1) - minY < -EPS) {
 			minY = points[i].get(1);
-			index = i;
 		}
 	}
 	for (size_t i = 0; i < points.size(); ++i) {
-		if (fabs(points[i].get(1) - minY) < EPS && points[i].get(0) < minX) {
+		if (fabs(points[i].get(1) - minY) < EPS && points[i].get(0) - minX < -EPS) {
 			minX = points[i].get(0);
 			index = i;
 		}
@@ -82,31 +81,23 @@ Polygon<Pt> makeMinkowsiSum(const Polygon<Pt>& first, const Polygon<Pt>& second)
 	std::vector<Pt> sum;
 	int leastIndex1 = first.getLeast();
 	int leastIndex2 = second.getLeast();
-	sum.push_back(first.get(leastIndex1));
 	int i = 0, j = 0;
-	while (i > -first.card() && j > -second.card()) {
-		if (first.get(leastIndex1 + i).angle(first.get(leastIndex1 + i - 1))
-				< second.get(leastIndex2 + j).angle(second.get(leastIndex2 + j - 1))) {
-			auto add = Pt(Pt(first.get(leastIndex1 + i), true), first.get(leastIndex1 + i - 1));
-			sum.emplace_back(sum[sum.size() - 1], add);
-			--i;
+	while (i < first.card() && j < second.card()) {
+		sum.push_back(Pt(first.get(leastIndex1 - i), second.get(leastIndex2 - j)));
+		if (first.get(leastIndex1 - i).angle(first.get(leastIndex1 - i - 1))
+			< second.get(leastIndex2 - j).angle(second.get(leastIndex2 - j - 1))) {
+			++i;
 		} else {
-			auto neg = Pt(second.get(leastIndex2 + j), true);
-			auto sec = second.get(leastIndex2 + j - 1);
-			auto add = Pt(neg, sec);
-			sum.emplace_back(sum[sum.size() - 1], add);
-			--j;
+			++j;
 		}
 	}
-	while (i < first.card()) {
-		auto add = Pt(Pt(first.get(leastIndex1 + i), true), first.get(leastIndex1 + i - 1));
-		sum.emplace_back(sum[sum.size() - 1], add);
-		--i;
+	while (i < first.card())  {
+		sum.push_back(Pt(first.get(leastIndex1 - i), second.get(leastIndex2 - j)));
+		++i;
 	}
 	while (j < second.card()) {
-		auto add = Pt(Pt(second.get(leastIndex2 + j), true), second.get(leastIndex2 + j - 1));
-		sum.emplace_back(sum[sum.size() - 1], add);
-		--j;
+		sum.push_back(Pt(first.get(leastIndex1 - i), second.get(leastIndex2 - j)));
+		++j;
 	}
 
 	return Polygon<Pt>(sum);
@@ -118,7 +109,7 @@ bool zeroInside(const Polygon<Pt>& polygon) {
 	for (size_t i = 0; i < polygon.card(); ++i) {
 		const auto p1 = polygon.get(i);
 		const auto p2 = polygon.get(i + 1);
-		if (-(p1.get(0) * p2.get(1)) + (p1.get(0) * p1.get(1)) + (p1.get(1) * p2.get(0)) - (p1.get(1) * p1.get(0)) > EPS) {
+		if (p1.get(0) * p2.get(1) - p1.get(1) * p2.get(0) < EPS) {
 			res = false;
 			break;
 		}
