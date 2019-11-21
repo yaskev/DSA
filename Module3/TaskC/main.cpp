@@ -4,7 +4,7 @@
 #include <vector>
 #include <cmath>
 
-const double EPS = 1e-8;
+constexpr double EPS = 1e-8;
 const double PI = atan(1) * 4;
 
 template <typename T, uint32_t Dim>
