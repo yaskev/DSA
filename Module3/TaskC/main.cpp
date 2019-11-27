@@ -4,7 +4,10 @@
 #include <vector>
 #include <cmath>
 
-const double EPS = 1e-8;
+template <typename T, uint32_t Dim> class Point;
+template <typename T, uint32_t Dim> Point<T, Dim> operator+(const Point<T, Dim>& p1, const Point<T, Dim>& p2);
+
+constexpr double EPS = 1e-8;
 const double PI = atan(1) * 4;
 
 template <typename T, uint32_t Dim>
@@ -12,18 +15,21 @@ class Point {
 public:
 	explicit Point(const std::array<T, Dim>& coords_) : coords(coords_) {}
 	Point(const Point<T, Dim>& other, bool negate);
-	Point(const Point& p1, const Point& p2);
+	Point() = default;
 	[[nodiscard]] double angle(const Point& other) const;
 	[[nodiscard]] T get(size_t i) const { return coords[(i % Dim)]; }
+	friend Point<T, Dim> operator+<>(const Point<T, Dim>& p1, const Point<T, Dim>& p2);
 private:
 	std::array<T, Dim> coords;
 };
 
 template <typename T, uint32_t Dim>
-Point<T, Dim>::Point(const Point &p1, const Point &p2) {
+Point<T, Dim> operator+(const Point<T, Dim>& p1, const Point<T, Dim>& p2) {
+	Point<T, Dim> res{};
 	for (uint32_t i = 0; i < Dim; ++i) {
-		coords[i] = p1.coords[i] + p2.coords[i];
+		res.coords[i] = p1.coords[i] + p2.coords[i];
 	}
+	return res;
 }
 
 template <typename T, uint32_t Dim>
@@ -83,7 +89,7 @@ Polygon<Pt> makeMinkowsiSum(const Polygon<Pt>& first, const Polygon<Pt>& second)
 	int leastIndex2 = second.getLeast();
 	int i = 0, j = 0;
 	while (i < first.card() && j < second.card()) {
-		sum.push_back(Pt(first.get(leastIndex1 - i), second.get(leastIndex2 - j)));
+		sum.push_back(first.get(leastIndex1 - i) + second.get(leastIndex2 - j));
 		if (first.get(leastIndex1 - i).angle(first.get(leastIndex1 - i - 1))
 			< second.get(leastIndex2 - j).angle(second.get(leastIndex2 - j - 1))) {
 			++i;
@@ -92,11 +98,11 @@ Polygon<Pt> makeMinkowsiSum(const Polygon<Pt>& first, const Polygon<Pt>& second)
 		}
 	}
 	while (i < first.card())  {
-		sum.push_back(Pt(first.get(leastIndex1 - i), second.get(leastIndex2 - j)));
+		sum.push_back(first.get(leastIndex1 - i) + second.get(leastIndex2 - j));
 		++i;
 	}
 	while (j < second.card()) {
-		sum.push_back(Pt(first.get(leastIndex1 - i), second.get(leastIndex2 - j)));
+		sum.push_back(first.get(leastIndex1 - i) + second.get(leastIndex2 - j));
 		++j;
 	}
 
@@ -140,6 +146,6 @@ int main() {
 		polygon2.emplace_back(std::array<double, 2>{x, y});
 	}
 	std::cout << (do_intersect(Polygon<Point<double, 2>>(polygon1),
-			Polygon<Point<double, 2>>(polygon2)) ? "YES"  : "NO");
+							   Polygon<Point<double, 2>>(polygon2)) ? "YES"  : "NO");
 	return 0;
 }
