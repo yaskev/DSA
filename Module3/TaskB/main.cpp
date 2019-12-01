@@ -13,7 +13,7 @@ public:
 	Point(T x_, T y_, T z_, int index_) : x(x_), y(y_), z(z_),
 										  index(index_), prev(nullptr), next(nullptr) {}
 	Point(T x_, T y_, T z_, int index_, Point *prev_, Point *next_) : x(x_), y(y_), z(z_),
-																	  index(index_), prev(prev_), next(next_) {}
+											index(index_), prev(prev_), next(next_) {}
 	T x, y, z;
 	int index = 0;
 	Point *prev, *next;
@@ -37,18 +37,15 @@ template <typename T>
 class ConvexHull {
 public:
 	explicit ConvexHull(std::vector<Point<T>*>);
-	~ConvexHull() { delete[] Hull; }
 	void print();
 private:
-//	int mergeHulls(std::vector<int>& tmp, const std::vector<int>& left, int& u, int& v, int j);
 	void updatePointers(Point<T>*, Point<T>*, Point<T>*, const std::vector<Point<T>*>&);
 	double crossProduct(const Point<T>*, const Point<T>*, const Point<T>*);
 	void findInitialBridge(Point<T>*&, Point<T>*&);
 //	void rotateAxis();
 	double getTime(const Point<T>*, const Point<T>*, const Point<T>*);
-	std::vector<Point<T>*> buildHullRecursively(Point<T>*, int, Point<T>**, Point<T>**);
+	std::vector<Point<T>*> buildHullRecursively(Point<T>*, int);
 
-	Point<T> **Hull;
 	size_t pointNo;
 	std::vector<Point<T>*> hull;
 	static Point<T>* NIL;
@@ -85,14 +82,11 @@ ConvexHull<T>::ConvexHull(std::vector<Point<T>*> points) {
 		points[i]->next = points[i + 1];
 		points[i]->prev = points[i - 1];
 	}
-	Hull = new Point<double> *[2*pointNo];
-	auto **tmp = new Point<double> *[2*pointNo];
-	hull = buildHullRecursively(points[0], pointNo, Hull, tmp);
-	delete[] tmp;
+	hull = buildHullRecursively(points[0], pointNo);
 }
 
 template<typename T>
-std::vector<Point<T>*> ConvexHull<T>::buildHullRecursively(Point<T> *point, int n, Point<T> **A, Point<T> **B) {
+std::vector<Point<T>*> ConvexHull<T>::buildHullRecursively(Point<T> *point, int n) {
 	std::vector<Point<T>*> res;
 	if (n == 1) {
 		point->prev = point->next = NIL;
@@ -104,11 +98,11 @@ std::vector<Point<T>*> ConvexHull<T>::buildHullRecursively(Point<T> *point, int 
 	Point<T> *v = u->next;
 	Point<T> *mid = v;
 
-	auto left = buildHullRecursively(point, n / 2, B, A);
-	auto right = buildHullRecursively(mid, n - n / 2, B + n / 2 * 2, A + n / 2 * 2);
+	auto left = buildHullRecursively(point, n / 2);
+	auto right = buildHullRecursively(mid, n - n / 2);
 	findInitialBridge(u, v);
 
-	int i = 0, k = 0, j = 0;
+	int i = 0, j = 0;
 	double oldTime = -INF;
 	while (true) {
 		double time[6], newTime = INF;
@@ -186,23 +180,23 @@ template<typename T>
 void ConvexHull<T>::updatePointers(Point<T>* u, Point<T>* v, Point<T>* mid, const std::vector<Point<T>*>& res) {
 	u->next = v;
 	v->prev = u;
-	for (auto elem = res.rbegin(); elem != res.rend(); ++elem) {
-		if ((*(elem))->x <= u->x || (*(elem))->x >= v->x) {
-			(*(elem))->update();
-			if ((*(elem)) == u) {
+	for (int i = res.size() - 1; i >= 0; --i) {
+		if (res[i]->x <= u->x || res[i]->x >= v->x) {
+			res[i]->update();
+			if (res[i] == u) {
 				u = u->prev;
-			} else if ((*(elem)) == v) {
+			} else if (res[i] == v) {
 				v = v->next;
 			}
 		} else {
-			u->next = (*(elem));
-			(*(elem))->prev = u;
-			v->prev = (*(elem));
-			(*(elem))->next = v;
-			if ((*(elem))->x < mid->x) {
-				u = (*(elem));
+			u->next = res[i];
+			res[i]->prev = u;
+			v->prev = res[i];
+			res[i]->next = v;
+			if (res[i]->x < mid->x) {
+				u = res[i];
 			} else {
-				v = (*(elem));
+				v = res[i];
 			}
 		}
 	}
