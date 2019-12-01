@@ -2,256 +2,228 @@
 #include <vector>
 #include <array>
 #include <limits>
+#include <fstream>
 
-const double INF = std::numeric_limits<double>::max();
+constexpr double INF = std::numeric_limits<double>::max();
 
 template <typename T>
 class Point {
 public:
-	Point(T x_, T y_, T z_, int index_) : x(x_), y(y_), z(z_), index(index_) {}
-	Point(T x_, T y_, T z_, int index_, int prev_, int next_) : x(x_), y(y_), z(z_),
-										index(index_), prev(prev_), next(next_) {}
+	Point() : x(0), y(0), z(0), index(-1), prev(nullptr), next(nullptr) {}
+	Point(T x_, T y_, T z_, int index_) : x(x_), y(y_), z(z_),
+										  index(index_), prev(nullptr), next(nullptr) {}
+	Point(T x_, T y_, T z_, int index_, Point *prev_, Point *next_) : x(x_), y(y_), z(z_),
+																	  index(index_), prev(prev_), next(next_) {}
 	T x, y, z;
 	int index = 0;
-	int prev = -1;
-	int next = -1;
+	Point *prev, *next;
+	bool operator<(const Point<T>& other) const { return x < other.x; }
+	void update();
 };
 
 template <typename T>
-class Facet {
-public:
-	Facet(const Point<T>& p1, const Point<T>& p2, const Point<T>& p3) : n1(p1.index), n2(p2.index), n3(p3.index) {}
-	void print() const { std::cout << "3 " << n1 << " " << n2 << " " << n3 << "\n"; }
-	bool operator<(const Facet<T>& other) const {
-		long long two = 1000;
-		long long one = 100000000;
-		return (one*n1 + two*n2 + n3) < (other.n1*one + other.n2*two + other.n3);
+void Point<T>::update() {
+	if (prev->next != this) { // Case of insertion
+		next->prev = this;
+		prev->next = this;
 	}
-private:
-	int n1, n2, n3;
-};
+	else { // Case of removal
+		prev->next = next;
+		next->prev = prev;
+	}
+}
 
 template <typename T>
 class ConvexHull {
 public:
-	explicit ConvexHull(std::vector<Point<T>>);
+	explicit ConvexHull(std::vector<Point<T>*>);
+	~ConvexHull() { delete[] Hull; }
 	void print();
 private:
-	int mergeHulls(std::vector<int>& tmp, const std::vector<int>& left, int& u, int& v, int j);
-	void updatePointers(int u, int v, int k, int mid, std::vector<int>& tmp);
-	double crossProduct(int p, int q, int r);
-	void findInitialBridge(int& u, int& v);
-	void rotateAxis();
-	double getTime(int p, int q, int r);
-	void update(int pos);
-	std::vector<int> buildHullRecursively(int start, int size);
+//	int mergeHulls(std::vector<int>& tmp, const std::vector<int>& left, int& u, int& v, int j);
+	void updatePointers(Point<T>*, Point<T>*, Point<T>*, const std::vector<Point<T>*>&);
+	double crossProduct(const Point<T>*, const Point<T>*, const Point<T>*);
+	void findInitialBridge(Point<T>*&, Point<T>*&);
+//	void rotateAxis();
+	double getTime(const Point<T>*, const Point<T>*, const Point<T>*);
+	std::vector<Point<T>*> buildHullRecursively(Point<T>*, int, Point<T>**, Point<T>**);
 
-	std::vector<Point<T>> points;
-	std::vector<int> hull;
-	size_t nil;
+	Point<T> **Hull;
+	size_t pointNo;
+	std::vector<Point<T>*> hull;
+	static Point<T>* NIL;
+	static Point<T> nilHolder;
 };
 
 template <typename T>
-double ConvexHull<T>::crossProduct(int p, int q, int r) {
-	if (p == nil || q == nil || r == nil) return 1;
-	return (points[q].x - points[p].x)*(points[r].y - points[p].y) -
-			(points[r].x - points[p].x)*(points[q].y - points[p].y);
+Point<T> ConvexHull<T>::nilHolder = Point<T>(INF, INF, INF, -1);
+template <typename T>
+Point<T>* ConvexHull<T>::NIL = &nilHolder;
+
+template <typename T>
+double ConvexHull<T>::crossProduct(const Point<T> *p, const Point<T> *q, const Point<T> *r) {
+	if (p == NIL || q == NIL || r == NIL) return 1;
+	return (q->x-p->x)*(r->y-p->y) - (r->x-p->x)*(q->y-p->y);
 }
 
 template <typename T>
-void ConvexHull<T>::findInitialBridge(int &u, int &v) { // What if u goes left to infinity? v to +inf?
-	while (true) {
-		if (crossProduct(u, v, points[v].next) < 0) {
-			v = points[v].next;
-		} else if (crossProduct(points[u].prev, u, v) < 0) {
-			u = points[u].prev;
-		} else {
-			break;
-		}
-	}
+double ConvexHull<T>::getTime(const Point<T> *p, const Point<T> *q, const Point<T> *r) {
+	if (p == NIL || q == NIL || r == NIL) return INF;
+	return ((q->x-p->x)*(r->z-p->z) - (r->x-p->x)*(q->z-p->z)) / crossProduct(p, q, r);
 }
 
 template <typename T>
-std::vector<int> ConvexHull<T>::buildHullRecursively(int start, int size) {
-	std::vector<int> tmp;
-	if (size == 1) {
-		points[start].next = nil;
-		points[start].prev = nil;
-		tmp.push_back(nil);
-		return tmp;
+ConvexHull<T>::ConvexHull(std::vector<Point<T>*> points) {
+	pointNo = points.size();
+//	rotateAxis();
+	std::sort(points.begin(), points.end(), [](const Point<double>* p1,
+											   const Point<double>* p2){return *p1 < *p2;});
+	points[0]->next = points[1];
+	points[pointNo - 1]->prev = points[pointNo - 2];
+	points[pointNo - 1]->next = NIL;
+	for (int i = 1; i + 1 < pointNo; ++i) {
+		points[i]->next = points[i + 1];
+		points[i]->prev = points[i - 1];
 	}
-	int v = 0;
-	int u = start + (size / 2 - 1);
-	int mid = v = points[u].next;
-	auto left = buildHullRecursively(start, size / 2);
-	auto right = buildHullRecursively(mid, size - size / 2);
-	left.insert(left.end(), right.begin(), right.end());
-	findInitialBridge(u, v);
-	int k = mergeHulls(tmp, left, u, v, left.size() - right.size());
-	updatePointers(u, v, k, mid, tmp);
-
-	if (start == 0 && size + 1 == points.size()) {
-		hull = std::move(tmp);
-		return hull;
-	}
-	return tmp;
-}
-
-template <typename T>
-void ConvexHull<T>::rotateAxis() {
-
-}
-
-template <typename T>
-void ConvexHull<T>::print() {
-	std::cout << hull.size() << "\n";
-	std::vector<Facet<double>> out;
-	for (int v : hull) {
-		// Here we should check the order
-		if (v == nil) break;
-		out.emplace_back(points[points[v].prev], points[v], points[points[v].next]);
-		update(v);
-	}
-	std::sort(out.begin(), out.end());
-	for (const auto& facet : out) {
-		facet.print();
-	}
-}
-
-template <typename T>
-void ConvexHull<T>::update(int pos) {
-	auto curr = points[pos];
-	if (points[curr.prev].next == pos) { // Remove case
-		points[curr.next].prev = curr.prev;
-		points[curr.prev].next = curr.prev;
-	} else { // Insert case
-		points[curr.prev].next = pos;
-		points[curr.next].prev = pos;
-	}
-}
-
-template <typename T>
-ConvexHull<T>::ConvexHull(std::vector<Point<T>> points_) {
-	Point<T> NIL = {INF, INF, INF, -1, -1, -1};
-	points = std::move(points_);
-	rotateAxis();
-	std::sort(points.begin(), points.end(), [](const Point<T>& p1, const Point<T>& p2)
-																{ return p1.x < p2.x; });
-	points[0].next = 1;
-	for (size_t i = 1; i < points.size(); ++i) { // Also add NULL
-		points[i].prev = i - 1;
-		points[i].next = i + 1;
-	}
-	points.push_back(NIL);
-	nil = points.size() - 1;
-	buildHullRecursively(0, points.size() - 1);
+	Hull = new Point<double> *[2*pointNo];
+	auto **tmp = new Point<double> *[2*pointNo];
+	hull = buildHullRecursively(points[0], pointNo, Hull, tmp);
+	delete[] tmp;
 }
 
 template<typename T>
-int ConvexHull<T>::mergeHulls(std::vector<int> &tmp, const std::vector<int> &left, int &u, int &v, int j) {
-	int i = 0;
-	std::array<double, 6> time{};
-	double oldtime = -INF, newtime = INF;
+std::vector<Point<T>*> ConvexHull<T>::buildHullRecursively(Point<T> *point, int n, Point<T> **A, Point<T> **B) {
+	std::vector<Point<T>*> res;
+	if (n == 1) {
+		point->prev = point->next = NIL;
+		res.push_back(NIL);
+		return res;
+	}
+	Point<T> *u = point;
+	std::advance(u, n / 2 - 1);
+	Point<T> *v = u->next;
+	Point<T> *mid = v;
+
+	auto left = buildHullRecursively(point, n / 2, B, A);
+	auto right = buildHullRecursively(mid, n - n / 2, B + n / 2 * 2, A + n / 2 * 2);
+	findInitialBridge(u, v);
+
+	int i = 0, k = 0, j = 0;
+	double oldTime = -INF;
 	while (true) {
-		int mintime = 0;
-		newtime = INF;
-		time[0] = getTime(points[left[i]].prev, left[i], points[left[i]].next);
-		time[1] = getTime(points[left[j]].prev, left[j], points[left[j]].next);
-		time[2] = getTime(u, points[u].next, v);
-		time[3] = getTime(points[u].prev, u, v);
-		time[4] = getTime(u, points[v].prev, v);
-		time[5] = getTime(u, v, points[v].next);
-		for (size_t f = 0; f < time.size(); ++f) {
-			if (time[f] < newtime && time[f] > oldtime) {
-				mintime = f;
-				newtime = time[mintime];
+		double time[6], newTime = INF;
+		int minIndex = -1;
+		time[0] = getTime(left[i]->prev, left[i], left[i]->next);
+		time[1] = getTime(right[j]->prev, right[j], right[j]->next);
+		time[2] = getTime(u, u->next, v);
+		time[3] = getTime(u->prev, u, v);
+		time[4] = getTime(u, v->prev, v);
+		time[5] = getTime(u, v, v->next);
+		for (int l = 0; l < 6; ++l) {
+			if (time[l] > oldTime && time[l] < newTime) {
+				minIndex = l;
+				newTime = time[l];
 			}
 		}
-		if (newtime > INF / 2) break;
-		switch (mintime) {
+		if (newTime > INF / 2) break;
+		switch (minIndex) {
 			case 0:
-				if (points[left[i]].x < points[u].x)
-					tmp.push_back(left[i]);
-				update(left[i++]);
+				if (left[i]->x < u->x)
+					res.push_back(left[i]);
+				left[i++]->update();
 				break;
 			case 1:
-				if (points[j].x > points[v].x)
-					tmp.push_back(left[j]);
-				update(left[j++]);
+				if (right[j]->x > v->x)
+					res.push_back(right[j]);
+				right[j++]->update();
 				break;
 			case 2:
-				u = points[u].next;
-				tmp.push_back(u);
+				u = u->next;
+				res.push_back(u);
 				break;
 			case 3:
-				u = points[u].prev;
-				tmp.push_back(u);
+				res.push_back(u);
+				u = u->prev;
 				break;
 			case 4:
-				v = points[v].prev;
-				tmp.push_back(v);
+				v = v->prev;
+				res.push_back(v);
 				break;
 			case 5:
-				v = points[v].next;
-				tmp.push_back(v);
+				res.push_back(v);
+				v = v->next;
 				break;
 			default:
 				break;
 		}
-		oldtime = newtime;
+		oldTime = newTime;
 	}
-	tmp.push_back(nil);
-	return static_cast<int>(tmp.size() - 1);
+	updatePointers(u, v, mid, res);
+	res.push_back(NIL);
+	return res;
 }
 
 template<typename T>
-void ConvexHull<T>::updatePointers(int u, int v, int k, int mid, std::vector<int>& tmp) {
-	points[u].next = v;
-	points[v].prev = u;
-	for (k--; k >= 0; --k) {
-		if (points[tmp[k]].x <= points[u].x || points[tmp[k]].x >= points[v].x) {
-			update(tmp[k]);
-			if (tmp[k] == u) {
-				u = points[u].prev;
-			} else if (tmp[k] == v) {
-				v = points[v].next;
+void ConvexHull<T>::print() {
+	for (int i = 0; hull[i] != NIL; hull[i++]->update()) {
+		std::cout << hull[i]->prev->index << " " << hull[i]->index << " "
+				  << hull[i]->next->index << "\n";
+	}
+}
+
+template<typename T>
+void ConvexHull<T>::findInitialBridge(Point<T>*& u, Point<T>*& v) {
+	while (true) {
+		if (crossProduct(u, v, v->next) < 0)
+			v = v->next;
+		else if (crossProduct(u->prev, u, v) < 0)
+			u = u->prev;
+		else break;
+	}
+}
+
+template<typename T>
+void ConvexHull<T>::updatePointers(Point<T>* u, Point<T>* v, Point<T>* mid, const std::vector<Point<T>*>& res) {
+	u->next = v;
+	v->prev = u;
+	for (auto elem = res.rbegin(); elem != res.rend(); ++elem) {
+		if ((*(elem))->x <= u->x || (*(elem))->x >= v->x) {
+			(*(elem))->update();
+			if ((*(elem)) == u) {
+				u = u->prev;
+			} else if ((*(elem)) == v) {
+				v = v->next;
 			}
 		} else {
-			points[u].next = tmp[k];
-			points[tmp[k]].prev = u;
-			points[v].prev = tmp[k];
-			points[tmp[k]].next = v;
-			if (points[tmp[k]].x < points[mid].x) {
-				u = tmp[k];
+			u->next = (*(elem));
+			(*(elem))->prev = u;
+			v->prev = (*(elem));
+			(*(elem))->next = v;
+			if ((*(elem))->x < mid->x) {
+				u = (*(elem));
 			} else {
-				v = tmp[k];
+				v = (*(elem));
 			}
 		}
 	}
-}
-
-template<typename T>
-double ConvexHull<T>::getTime(int p, int q, int r) {
-	if (p == nil || q == nil || r == nil) return INF;
-	return ((points[q].x - points[p].x)*(points[r].z - points[p].z)
-			- (points[r].x - points[p].x)*(points[q].z - points[p].z)) / crossProduct(p, q, r);
 }
 
 int main() {
-	int tests_no = 0, points_no = 0;
-	double x = 0, y = 0, z = 0;
-	std::cin >> tests_no;
-	for (int i = 0; i < tests_no; ++i) {
-		std::vector<Point<double>> hull;
-		std::cin >> points_no;
-		hull.reserve(points_no + 1); // Add one more place to accomodate NIL
-		for (int j = 0; j < points_no; ++j) {
-			std::cin >> x >> y >> z;
-			hull.emplace_back(x, y, z, j);
-		}
-		ConvexHull<double> convHull(hull);
-		convHull.print();
+	std::ifstream fin("../input.txt");
+	int n = 0;
+	double x, y, z;
+	fin >> n;
+	std::vector<Point<double>*> points;
+	points.reserve(n);
+	for (int i = 0; i < n; ++i) {
+		fin >> x >> y >> z;
+		points.push_back(new Point<double>(x, y, z, i));
 	}
-
+	ConvexHull<double> convexHull(points);
+	convexHull.print();
+	for (const auto& p : points) {
+		delete p;
+	}
+	fin.close();
 	return 0;
 }
